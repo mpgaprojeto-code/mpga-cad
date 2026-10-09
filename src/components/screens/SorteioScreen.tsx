@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { RegisteredChild, SorteioWinner, ReplacementLog, ScreenType } from '../../types';
+import { RegisteredChild, SorteioWinner, ReplacementLog, ScreenType, DrawRoundRecord } from '../../types';
+import { PrintReportModal } from '../PrintReportModal';
 import {
   subscribeToSorteioState,
   saveSorteioStateToFirestore,
@@ -92,6 +93,29 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
   const [winnerSearchTerm, setWinnerSearchTerm] = useState('');
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [showPoolList, setShowPoolList] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+
+  // Persistent historical rounds of draws
+  const [drawHistory, setDrawHistory] = useState<DrawRoundRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('mpga_sorteio_draw_history_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading draw history', e);
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mpga_sorteio_draw_history_v1', JSON.stringify(drawHistory));
+    } catch (e) {
+      console.error('Error saving draw history', e);
+    }
+  }, [drawHistory]);
 
   // Firebase real-time synchronization for Sorteio across all screens
   useEffect(() => {
@@ -177,6 +201,35 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
     setReplacementLogs([]);
     setIsDrawing(false);
 
+    // Record this round in draw history (accumulating 1st, 2nd, and 3rd place winners)
+    const newRound: DrawRoundRecord = {
+      id: `round-${Date.now()}`,
+      roundNumber: drawHistory.length + 1,
+      drawnAt: now,
+      firstPlace: selectedWinners[0]
+        ? {
+            credentialCode: selectedWinners[0].child.credentialCode,
+            childName: selectedWinners[0].child.childName,
+            childId: selectedWinners[0].child.id,
+          }
+        : undefined,
+      secondPlace: selectedWinners[1]
+        ? {
+            credentialCode: selectedWinners[1].child.credentialCode,
+            childName: selectedWinners[1].child.childName,
+            childId: selectedWinners[1].child.id,
+          }
+        : undefined,
+      thirdPlace: selectedWinners[2]
+        ? {
+            credentialCode: selectedWinners[2].child.credentialCode,
+            childName: selectedWinners[2].child.childName,
+            childId: selectedWinners[2].child.id,
+          }
+        : undefined,
+    };
+    setDrawHistory((prev) => [...prev, newRound]);
+
     // Persist to Firebase Firestore
     saveSorteioStateToFirestore(selectedWinners, [], []).catch((err) => {
       console.warn('Firestore Sorteio sync note:', err.message);
@@ -239,6 +292,26 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
     setReplacementLogs(updatedReplacementLogs);
     setReplacementModalOpen(false);
     setSelectedPlaceForReplacement(null);
+
+    // Update drawHistory latest round if 1st, 2nd, or 3rd place was substituted
+    if (placeToReplace <= 3) {
+      setDrawHistory((prev) => {
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        const roundCopy = { ...updated[lastIdx] };
+        const repInfo = {
+          credentialCode: newChild.credentialCode,
+          childName: newChild.childName,
+          childId: newChild.id,
+        };
+        if (placeToReplace === 1) roundCopy.firstPlace = repInfo;
+        if (placeToReplace === 2) roundCopy.secondPlace = repInfo;
+        if (placeToReplace === 3) roundCopy.thirdPlace = repInfo;
+        updated[lastIdx] = roundCopy;
+        return updated;
+      });
+    }
 
     // Persist replacement to Firestore
     saveSorteioStateToFirestore(updatedWinners, newAbsentList, updatedReplacementLogs).catch((err) => {
@@ -524,6 +597,16 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                     : `Sortear Novamente (${Math.min(registeredChildren.length, MAX_WINNERS)} Ganhadores)`}
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setPrintModalOpen(true)}
+                className="bg-white hover:bg-gray-50 active:scale-95 text-[#0854A7] font-black text-sm px-7 py-4 rounded-2xl uppercase tracking-wider transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2.5 border-2 border-white/60 cursor-pointer"
+                title="Imprimir relatório resumido de cadastrados em formato A4"
+              >
+                <Printer className="w-5 h-5 text-[#0854A7]" />
+                <span>Imprimir Lista</span>
+              </button>
             </div>
           </div>
 
@@ -745,6 +828,16 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                     <Sparkles className="w-4 h-4 text-[#FFC300] shrink-0" />
                     <span>Sortear Novamente</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPrintModalOpen(true)}
+                    className="w-full sm:w-auto px-6 py-3.5 bg-white hover:bg-gray-50 active:scale-95 text-[#0854A7] border-2 border-[#0854A7] font-black text-sm rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider text-center"
+                    title="Imprimir relatório resumido de cadastrados em formato A4"
+                  >
+                    <Printer className="w-4 h-4 text-[#0854A7]" />
+                    <span>Imprimir Lista</span>
+                  </button>
                 </div>
               </div>
 
@@ -897,6 +990,15 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* Printable A4 Report Modal */}
+      <PrintReportModal
+        isOpen={printModalOpen}
+        onClose={() => setPrintModalOpen(false)}
+        registeredChildren={registeredChildren}
+        drawHistory={drawHistory}
+        currentWinners={winners}
+      />
     </div>
   );
 };

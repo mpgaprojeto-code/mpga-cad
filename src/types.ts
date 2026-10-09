@@ -35,6 +35,15 @@ export interface ReplacementLog {
   timestamp: string;
 }
 
+export interface DrawRoundRecord {
+  id: string;
+  roundNumber: number;
+  drawnAt: string;
+  firstPlace?: { credentialCode: string; childName: string; childId: string };
+  secondPlace?: { credentialCode: string; childName: string; childId: string };
+  thirdPlace?: { credentialCode: string; childName: string; childId: string };
+}
+
 export interface Child {
   id: string;
   childName: string;

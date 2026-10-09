@@ -62,3 +62,62 @@
 .animate-float-delayed {
   animation: floatGentle 6s ease-in-out 1.5s infinite;
 }
+
+/* Print optimizations for A4 Report sheet */
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide regular app chrome when printing modal */
+  body > *:not(#root) {
+    display: none !important;
+  }
+
+  .print\\:hidden,
+  button,
+  header,
+  footer,
+  nav {
+    display: none !important;
+  }
+
+  #printable-a4-sheet {
+    display: flex !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
