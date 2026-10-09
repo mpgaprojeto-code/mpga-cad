@@ -14,6 +14,15 @@ import {
 import { db } from '../lib/firebase';
 import { RegisteredChild, SorteioWinner, ReplacementLog } from '../types';
 import { formatCredentialCode, INITIAL_REGISTERED_CHILDREN } from '../data/mockData';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  subscribeToSupabaseChildren,
+  fetchSupabaseChildren,
+  insertSupabaseChild,
+  subscribeToSupabaseSorteio,
+  saveSupabaseSorteioState,
+  clearSupabaseData,
+} from './supabaseService';
 
 export const CHILDREN_COLLECTION = 'registered_children';
 export const SORTEIO_DOC_PATH = 'sorteio_state/active';
@@ -37,12 +46,17 @@ function updateStatus(newStatus: FirebaseSyncStatus) {
 }
 
 /**
- * Subscribes to real-time updates of registered children from Firestore.
+ * Subscribes to real-time updates of registered children from Supabase or Firestore.
  */
 export function subscribeToChildren(
   onUpdate: (children: RegisteredChild[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    updateStatus('connected');
+    return subscribeToSupabaseChildren(onUpdate, onError);
+  }
+
   try {
     const q = query(collection(db, CHILDREN_COLLECTION), orderBy('sequenceNumber', 'asc'));
     
@@ -89,9 +103,19 @@ export function subscribeToChildren(
 }
 
 /**
- * Fetches all registered children once directly from Firestore.
+ * Fetches all registered children once directly from Supabase or Firestore.
  */
 export async function fetchAllChildrenOnce(): Promise<RegisteredChild[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const list = await fetchSupabaseChildren();
+      updateStatus('connected');
+      return list;
+    } catch (err: any) {
+      console.warn('Supabase fetch failed, attempting Firestore fallback:', err);
+    }
+  }
+
   try {
     const q = query(collection(db, CHILDREN_COLLECTION), orderBy('sequenceNumber', 'asc'));
     const snapshot = await getDocs(q);
@@ -166,6 +190,19 @@ export async function registerChildInFirestore(
     registeredAt: formattedDate,
   };
 
+  let syncedToCloud = false;
+
+  // Sync to Supabase if configured
+  if (isSupabaseConfigured()) {
+    try {
+      await insertSupabaseChild(childRecord);
+      syncedToCloud = true;
+      updateStatus('connected');
+    } catch (supErr: any) {
+      console.warn('Supabase sync notice:', supErr.message);
+    }
+  }
+
   try {
     const docRef = doc(db, CHILDREN_COLLECTION, docId);
     await setDoc(docRef, {
@@ -173,15 +210,18 @@ export async function registerChildInFirestore(
       createdAt: serverTimestamp(),
     });
     updateStatus('connected');
+    syncedToCloud = true;
     return { child: childRecord, syncedToCloud: true };
   } catch (e: any) {
-    if (e.code === 'permission-denied') {
-      updateStatus('permission_denied');
-    } else {
-      updateStatus('offline');
+    if (!syncedToCloud) {
+      if (e.code === 'permission-denied') {
+        updateStatus('permission_denied');
+      } else {
+        updateStatus('offline');
+      }
     }
     console.warn('Could not immediately sync new child to Firestore, saved to local cache:', e.message);
-    return { child: childRecord, syncedToCloud: false, error: e.message };
+    return { child: childRecord, syncedToCloud, error: e.message };
   }
 }
 
@@ -219,7 +259,7 @@ export async function seedInitialChildrenIfEmpty(): Promise<{ success: boolean; 
 }
 
 /**
- * Subscribes to Sorteio state in Firestore so all devices stay in sync.
+ * Subscribes to Sorteio state in Supabase or Firestore so all devices stay in sync.
  */
 export function subscribeToSorteioState(
   onUpdate: (data: {
@@ -229,6 +269,10 @@ export function subscribeToSorteioState(
   } | null) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeToSupabaseSorteio(onUpdate, onError);
+  }
+
   try {
     const docRef = doc(db, SORTEIO_DOC_PATH);
     return onSnapshot(
@@ -261,13 +305,22 @@ export function subscribeToSorteioState(
 }
 
 /**
- * Saves Sorteio state to Firestore.
+ * Saves Sorteio state to Supabase and Firestore.
  */
 export async function saveSorteioStateToFirestore(
   winners: SorteioWinner[],
   absentIds: string[],
   replacementLogs: ReplacementLog[]
 ): Promise<boolean> {
+  let savedToSupabase = false;
+  if (isSupabaseConfigured()) {
+    try {
+      savedToSupabase = await saveSupabaseSorteioState(winners, absentIds, replacementLogs);
+    } catch (err: any) {
+      console.warn('Error saving sorteio state to Supabase:', err.message);
+    }
+  }
+
   try {
     const docRef = doc(db, SORTEIO_DOC_PATH);
     await setDoc(docRef, {
@@ -282,14 +335,22 @@ export async function saveSorteioStateToFirestore(
       updateStatus('permission_denied');
     }
     console.warn('Error saving sorteio state to Firestore (persisted locally):', e.message);
-    return false;
+    return savedToSupabase;
   }
 }
 
 /**
- * Clears all registered children and resets sorteio state in Firestore
+ * Clears all registered children and resets sorteio state in Supabase and Firestore
  */
 export async function clearAllDataInFirestore(): Promise<{ success: boolean; message: string }> {
+  if (isSupabaseConfigured()) {
+    try {
+      await clearSupabaseData();
+    } catch (err: any) {
+      console.warn('Error clearing Supabase data:', err.message);
+    }
+  }
+
   try {
     const snap = await getDocs(collection(db, CHILDREN_COLLECTION));
     if (!snap.empty) {
@@ -309,7 +370,7 @@ export async function clearAllDataInFirestore(): Promise<{ success: boolean; mes
       updatedAt: serverTimestamp(),
     });
 
-    return { success: true, message: 'Cadastros e sorteio zerados com sucesso no Firestore!' };
+    return { success: true, message: 'Cadastros e sorteio zerados com sucesso no banco de dados!' };
   } catch (e: any) {
     console.warn('Could not clear Firestore data (using local reset):', e.message);
     return { success: false, message: e.message || 'Erro ao zerar no Firestore.' };

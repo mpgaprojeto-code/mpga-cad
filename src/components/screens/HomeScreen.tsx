@@ -16,8 +16,7 @@ import {
   AlertCircle,
   MapPin,
   Phone,
-  Megaphone,
-  RefreshCw
+  Megaphone
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -43,17 +42,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onResetChildren,
   onRefreshChildren,
 }) => {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    if (!onRefreshChildren || isRefreshing) return;
-    setIsRefreshing(true);
-    try {
-      await onRefreshChildren();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
   // Form fields in exact required order:
   // 1. Nome do Responsável
   const [guardianName, setGuardianName] = useState('');
@@ -512,7 +500,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          {/* Search bar & Action Buttons */}
+          {/* Search bar */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5 items-stretch sm:items-center justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -523,21 +511,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-white border-2 border-gray-200 rounded-full pl-10 pr-4 py-2 text-sm text-[#111827] focus:outline-hidden focus:border-[#0854A7]"
               />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {onRefreshChildren && (
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-[#0854A7] border border-blue-200 rounded-full text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
-                  title="Atualizar lista de cadastrados em tempo real"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 text-[#0854A7] ${isRefreshing ? 'animate-spin' : ''}`} />
-                  <span>{isRefreshing ? 'Atualizando...' : 'Atualizar Lista'}</span>
-                </button>
-              )}
             </div>
           </div>
 

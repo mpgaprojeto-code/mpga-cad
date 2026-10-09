@@ -1,6 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics, isSupported } from 'firebase/analytics';
 
 // Firebase configuration provided for mpga-cadastro
 export const firebaseConfig = {
@@ -19,18 +18,3 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 // Initialize Firestore
 export const db = getFirestore(app);
 
-// Initialize Analytics conditionally (only in supported browser environments)
-export let analytics: ReturnType<typeof getAnalytics> | null = null;
-if (typeof window !== 'undefined') {
-  isSupported().then((supported) => {
-    if (supported) {
-      try {
-        analytics = getAnalytics(app);
-      } catch (e) {
-        console.warn('Firebase Analytics initialization skipped:', e);
-      }
-    }
-  }).catch(() => {
-    // Analytics not supported in this environment
-  });
-}

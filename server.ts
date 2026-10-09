@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -18,10 +19,35 @@ async function startServer() {
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      service: 'MPGA Backend & Firebase Integration',
+      service: 'MPGA Backend & Database Integration',
+      supabaseProject: "mpgaprojeto-code's Project",
       firebaseProject: 'mpga-cadastro',
       timestamp: new Date().toISOString()
     });
+  });
+
+  app.get('/api/supabase/status', (_req: Request, res: Response) => {
+    const hasUrl = Boolean(process.env.VITE_SUPABASE_URL);
+    const hasKey = Boolean(process.env.VITE_SUPABASE_ANON_KEY);
+    res.json({
+      project: "mpgaprojeto-code's Project",
+      configured: hasUrl && hasKey,
+      tables: ['registered_children', 'sorteio_state'],
+      realtimeEnabled: true,
+      hasUrl,
+      hasKey
+    });
+  });
+
+  app.get('/api/supabase/schema', (_req: Request, res: Response) => {
+    const schemaPath = path.resolve(__dirname, 'supabase', 'schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sql = fs.readFileSync(schemaPath, 'utf8');
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(sql);
+    } else {
+      res.status(404).send('schema.sql not found');
+    }
   });
 
   app.get('/api/firebase/config', (_req: Request, res: Response) => {
