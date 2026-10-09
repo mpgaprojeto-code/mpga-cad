@@ -1,0 +1,25 @@
+{
+  "schema": {
+    "registered_children": {
+      "id": "string",
+      "sequenceNumber": "number",
+      "credentialCode": "string",
+      "guardianName": "string",
+      "childName": "string",
+      "birthDate": "string",
+      "cityNeighborhood": "string",
+      "whatsappPhone": "string",
+      "referralSource": "string",
+      "age": "number",
+      "registeredAt": "string",
+      "createdAt": "timestamp"
+    },
+    "sorteio_state": {
+      "winners": "array",
+      "absentIds": "array",
+      "replacementLogs": "array",
+      "updatedAt": "timestamp"
+    }
+  },
+  "rules": "firestore.rules"
+}
