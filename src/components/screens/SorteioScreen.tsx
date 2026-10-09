@@ -21,14 +21,14 @@ import {
   X,
   Award,
   Filter,
-  Printer,
-  Trash2
+  Printer
 } from 'lucide-react';
 
 interface SorteioScreenProps {
   registeredChildren: RegisteredChild[];
   onNavigate: (screen: ScreenType) => void;
   onResetChildren?: () => void;
+  onRefreshChildren?: () => Promise<number | void> | void;
 }
 
 const MAX_WINNERS = 20;
@@ -37,7 +37,26 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
   registeredChildren,
   onNavigate,
   onResetChildren,
+  onRefreshChildren,
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  const handleRefresh = async () => {
+    if (!onRefreshChildren || isRefreshing) return;
+    setIsRefreshing(true);
+    setRefreshMessage(null);
+    try {
+      await onRefreshChildren();
+      setRefreshMessage('Atualizado!');
+      setTimeout(() => setRefreshMessage(null), 2500);
+    } catch (err) {
+      console.error('Error refreshing children in sorteio', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Persistence for winners in local storage so page refreshes don't lose the live draw
   const [winners, setWinners] = useState<SorteioWinner[]>(() => {
     try {
@@ -406,24 +425,25 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                 <span>{registeredChildren.length} {registeredChildren.length === 1 ? 'Credencial Participante' : 'Credenciais Participantes'}</span>
               </span>
 
+              {onRefreshChildren && (
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || isDrawing}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0854A7] border border-blue-200 rounded-full text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                  title="Atualizar lista de cadastrados em tempo real"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#0854A7] ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshing ? 'Atualizando...' : 'Atualizar Lista'}</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setShowPoolList(!showPoolList)}
                 className="text-xs font-bold text-[#0854A7] hover:underline cursor-pointer"
               >
                 {showPoolList ? 'Ocultar Lista' : 'Ver Todas as Credenciais'}
               </button>
-
-              {onResetChildren && (
-                <button
-                  type="button"
-                  onClick={onResetChildren}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-xs font-bold transition-colors cursor-pointer"
-                  title="Zerar todos os cadastros e reiniciar o sorteio"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Zerar Cadastros</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -535,6 +555,23 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                     : `Sortear Novamente (${Math.min(registeredChildren.length, MAX_WINNERS)} Ganhadores)`}
                 </span>
               </button>
+
+              {onRefreshChildren && (
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || isDrawing}
+                  className="bg-white/15 hover:bg-white/25 active:scale-95 text-white font-black text-sm px-6 py-4 rounded-2xl uppercase tracking-wider transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2.5 border-2 border-white/40 cursor-pointer backdrop-blur-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Atualizar lista de participantes em tempo real"
+                >
+                  <RefreshCw className={`w-5 h-5 text-[#FFC300] ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isRefreshing
+                      ? 'Atualizando...'
+                      : refreshMessage || 'Atualizar Lista'}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -729,7 +766,7 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                   Botão embaixo do sorteio para substituição e novo sorteio
               */}
               <div className="bg-[#FFF3EB] border-2 border-[#FFC300] rounded-3xl p-6 md:p-8 shadow-sm flex flex-col items-center justify-center">
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-xl">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-3xl">
                   <button
                     type="button"
                     onClick={() => {
@@ -737,7 +774,7 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                       setModalSearchTerm('');
                       setReplacementModalOpen(true);
                     }}
-                    className="w-full sm:w-1/2 bg-[#FF2D78] hover:bg-[#e02069] active:scale-95 text-white font-black text-sm px-6 py-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider text-center"
+                    className="w-full sm:flex-1 bg-[#FF2D78] hover:bg-[#e02069] active:scale-95 text-white font-black text-sm px-6 py-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider text-center"
                   >
                     <UserX className="w-4 h-4 shrink-0" />
                     <span>Sortear Substituto para Ausente</span>
@@ -747,7 +784,7 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                     type="button"
                     onClick={handlePerformDraw}
                     disabled={isDrawing || registeredChildren.length === 0}
-                    className={`w-full sm:w-1/2 font-black text-sm px-6 py-3.5 rounded-2xl uppercase tracking-wider transition-all duration-200 shadow-md flex items-center justify-center gap-2 cursor-pointer text-center ${
+                    className={`w-full sm:flex-1 font-black text-sm px-6 py-3.5 rounded-2xl uppercase tracking-wider transition-all duration-200 shadow-md flex items-center justify-center gap-2 cursor-pointer text-center ${
                       isDrawing || registeredChildren.length === 0
                         ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                         : 'bg-[#0854A7] hover:bg-[#064283] active:scale-95 text-white hover:shadow-lg'
@@ -756,6 +793,19 @@ export const SorteioScreen: React.FC<SorteioScreenProps> = ({
                     <Sparkles className="w-4 h-4 text-[#FFC300] shrink-0" />
                     <span>Sortear Novamente</span>
                   </button>
+
+                  {onRefreshChildren && (
+                    <button
+                      type="button"
+                      onClick={handleRefresh}
+                      disabled={isRefreshing || isDrawing}
+                      className="w-full sm:w-auto px-5 py-3.5 bg-white hover:bg-gray-50 text-[#0854A7] border-2 border-[#0854A7] font-black text-sm rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
+                      title="Atualizar lista de cadastrados em tempo real"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-[#0854A7] ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshing ? 'Atualizando...' : 'Atualizar Lista'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

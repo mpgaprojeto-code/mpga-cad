@@ -89,6 +89,43 @@ export function subscribeToChildren(
 }
 
 /**
+ * Fetches all registered children once directly from Firestore.
+ */
+export async function fetchAllChildrenOnce(): Promise<RegisteredChild[]> {
+  try {
+    const q = query(collection(db, CHILDREN_COLLECTION), orderBy('sequenceNumber', 'asc'));
+    const snapshot = await getDocs(q);
+    updateStatus('connected');
+    const list: RegisteredChild[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      list.push({
+        id: docSnap.id,
+        sequenceNumber: data.sequenceNumber ?? 0,
+        credentialCode: data.credentialCode ?? formatCredentialCode(data.sequenceNumber || 1),
+        guardianName: data.guardianName || '',
+        childName: data.childName || '',
+        birthDate: data.birthDate || '',
+        cityNeighborhood: data.cityNeighborhood || '',
+        whatsappPhone: data.whatsappPhone || '',
+        referralSource: data.referralSource || '',
+        age: data.age ?? 0,
+        registeredAt: data.registeredAt || new Date().toISOString(),
+      });
+    });
+    return list;
+  } catch (err: any) {
+    console.warn('Failed to fetch children once:', err);
+    if (err.code === 'permission-denied') {
+      updateStatus('permission_denied');
+    } else {
+      updateStatus('offline');
+    }
+    throw err;
+  }
+}
+
+/**
  * Register a new child in Firestore.
  * Always resolves successfully: if Firestore is temporarily permission-denied or offline,
  * it returns the local record so the UI and credentials flow continue seamlessly!

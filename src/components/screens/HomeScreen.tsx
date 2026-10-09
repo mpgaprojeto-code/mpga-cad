@@ -17,7 +17,7 @@ import {
   MapPin,
   Phone,
   Megaphone,
-  Trash2
+  RefreshCw
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -33,6 +33,7 @@ interface HomeScreenProps {
   }) => RegisteredChild | null;
   onNavigate: (screen: ScreenType) => void;
   onResetChildren?: () => void;
+  onRefreshChildren?: () => Promise<number | void> | void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -40,7 +41,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onAddChild,
   onNavigate,
   onResetChildren,
+  onRefreshChildren,
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!onRefreshChildren || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshChildren();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   // Form fields in exact required order:
   // 1. Nome do Responsável
   const [guardianName, setGuardianName] = useState('');
@@ -512,17 +525,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               />
             </div>
 
-            {onResetChildren && registeredChildren.length > 0 && (
-              <button
-                type="button"
-                onClick={onResetChildren}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-xs font-bold transition-colors cursor-pointer"
-                title="Zerar todos os cadastros para reiniciar com MPGA26-001"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Zerar Cadastros (Reiniciar Lista)</span>
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {onRefreshChildren && (
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-[#0854A7] border border-blue-200 rounded-full text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                  title="Atualizar lista de cadastrados em tempo real"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#0854A7] ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshing ? 'Atualizando...' : 'Atualizar Lista'}</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Empty State */}

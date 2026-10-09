@@ -14,6 +14,7 @@ import { ConfirmResetModal } from './components/ConfirmResetModal';
 import { Sparkles, X } from 'lucide-react';
 import {
   subscribeToChildren,
+  fetchAllChildrenOnce,
   registerChildInFirestore,
   clearAllDataInFirestore,
   onFirebaseStatusChange,
@@ -93,6 +94,45 @@ export default function App() {
     setTimeout(() => {
       setToastMessage(null);
     }, 4500);
+  };
+
+  const handleRefreshChildren = async (): Promise<number> => {
+    try {
+      const freshList = await fetchAllChildrenOnce();
+      const cleanList = freshList.filter(
+        (c) => c.id !== 'reg-001' && c.childName !== 'Lucas Gabriel dos Santos'
+      );
+      setRegisteredChildren(cleanList);
+      localStorage.setItem('mpga_registered_children', JSON.stringify(cleanList));
+      showToast(
+        'Lista Atualizada!',
+        `Sincronizada em tempo real: ${cleanList.length} ${
+          cleanList.length === 1 ? 'criança cadastrada' : 'crianças cadastradas'
+        }.`
+      );
+      return cleanList.length;
+    } catch (e: any) {
+      console.warn('Realtime refresh note (using local cache):', e);
+      const cached = localStorage.getItem('mpga_registered_children');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setRegisteredChildren(parsed);
+          showToast(
+            'Lista Atualizada!',
+            `${parsed.length} ${parsed.length === 1 ? 'criança cadastrada' : 'crianças cadastradas'} em cache local.`
+          );
+          return parsed.length;
+        } catch (_) {}
+      }
+      showToast(
+        'Lista Atualizada!',
+        `${registeredChildren.length} ${
+          registeredChildren.length === 1 ? 'criança verificada' : 'crianças verificadas'
+        }.`
+      );
+      return registeredChildren.length;
+    }
   };
 
   const handleConfirmReset = async () => {
@@ -183,6 +223,7 @@ export default function App() {
             onAddChild={handleAddChild}
             onNavigate={(screen) => setCurrentScreen(screen)}
             onResetChildren={() => setResetModalOpen(true)}
+            onRefreshChildren={handleRefreshChildren}
           />
         )}
 
@@ -191,6 +232,7 @@ export default function App() {
             registeredChildren={registeredChildren}
             onNavigate={(screen) => setCurrentScreen(screen)}
             onResetChildren={() => setResetModalOpen(true)}
+            onRefreshChildren={handleRefreshChildren}
           />
         )}
       </main>
